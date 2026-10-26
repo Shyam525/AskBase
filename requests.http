@@ -1,0 +1,56 @@
+@baseUrl = http://localhost:5000
+
+### ─── 1. Register Org A ────────────────────────────────────────────
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "orgName": "Startup A",
+  "email": "admin@startupa.com",
+  "password": "SecurePass123!"
+}
+
+# Copy the "accessToken" value from the response ↓
+@tokenA = PASTE_ACCESS_TOKEN_HERE
+
+### ─── 2. Register Org B (proves multi-tenancy isolation) ───────────
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "orgName": "Startup B",
+  "email": "admin@startupb.com",
+  "password": "SecurePass123!"
+}
+
+@tokenB = PASTE_ORG_B_ACCESS_TOKEN_HERE
+
+### ─── 3. Login ─────────────────────────────────────────────────────
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@startupa.com",
+  "password": "SecurePass123!"
+}
+
+### ─── 4. Verify your JWT — Get current user ─────────────────────────
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{tokenA}}
+
+### ─── 5. Refresh token ──────────────────────────────────────────────
+POST {{baseUrl}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "PASTE_REFRESH_TOKEN_FROM_LOGIN_RESPONSE"
+}
+
+### ─── 6. Logout ─────────────────────────────────────────────────────
+POST {{baseUrl}}/api/auth/logout
+Authorization: Bearer {{tokenA}}
+Content-Type: application/json
+
+{
+  "refreshToken": "PASTE_REFRESH_TOKEN"
+}

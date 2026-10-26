@@ -1,0 +1,6 @@
+@AskBase.Api_HostAddress = http://localhost:5277
+
+GET {{AskBase.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
