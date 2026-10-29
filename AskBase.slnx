@@ -1,8 +1,0 @@
-<Solution>
-  <Folder Name="/src/">
-    <Project Path="src/AskBase.Api/AskBase.Api.csproj" />
-    <Project Path="src/AskBase.Application/AskBase.Application.csproj" />
-    <Project Path="src/AskBase.Domain/AskBase.Domain.csproj" />
-    <Project Path="src/AskBase.Infrastructure/AskBase.Infrastructure.csproj" />
-  </Folder>
-</Solution>
