@@ -1,48 +1,59 @@
 # AskBase
 
-AskBase is a modern, modular monolith backend designed for scalable data management and workspace orchestration.
+AskBase is a permission-aware, evidence-grounded internal knowledge system for organizations.
+
+It enables teams to organize institutional knowledge into isolated workspaces, upload documents across multiple formats, perform scoped search, ask natural-language questions, and receive verifiable answers strictly grounded in retrievable passages.
+
+When available evidence is insufficient to answer a query truthfully, the system **explicitly abstains** rather than hallucinating unsupported claims.
 
 ---
 
-## 🛠️ Tech Stack
+## 🛠️ Tech Stack & Architecture
 
-- **Runtime**: [Node.js](https://nodejs.org/) (>= 20.0.0)
-- **Language**: [TypeScript](https://www.typescriptlang.org/) (Strict Mode)
-- **Web Framework**: [Express](https://expressjs.com/) with [Helmet](https://helmetjs.github.io/) & [CORS](https://github.com/expressjs/cors)
-- **Database**: [PostgreSQL](https://www.postgresql.org/) (>= 16) with connection pooling via [`pg`](https://node-postgres.com/)
-- **Configuration & Validation**: [Zod](https://zod.dev/)
-- **Security & Cryptography**: [bcryptjs](https://github.com/dcodeIO/bcrypt.js) & [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken)
-- **Testing**: [Vitest](https://vitest.dev/) & [Supertest](https://github.com/ladjs/supertest) with disposable in-process PostgreSQL engine ([@electric-sql/pglite](https://pglite.electric-sql.com/))
-- **Containerization & CI**: Docker Compose (`docker-compose.yml`) & GitHub Actions (`.github/workflows/ci.yml`)
+- **Runtime & Language**: [Python](https://www.python.org/) (>= 3.11) with strict static typing
+- **Package & Environment Management**: [`uv`](https://docs.astral.sh/uv/) with locked dependencies (`uv.lock`)
+- **Web API Framework**: [FastAPI](https://fastapi.tiangolo.com/) & [Starlette](https://www.starlette.io/)
+- **Data Validation & Settings**: [Pydantic](https://docs.pydantic.dev/) v2 & [Pydantic Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) (fail-closed in production)
+- **Database & Persistence**: [PostgreSQL](https://www.postgresql.org/) (>= 16) with [SQLAlchemy 2.x](https://www.sqlalchemy.org/) async engine & connection pooling
+- **Database Migrations**: [Alembic](https://alembic.sqlalchemy.org/) version-controlled schema revisions
+- **Security & Cryptography**: [Argon2id](https://github.com/hynek/argon2-cffi) for password hashing and [PyJWT](https://pyjwt.readthedocs.io/) for HMAC-SHA256 signed access tokens with issuer, audience, and expiry validation
+- **Document Ingestion**: Multi-format text extraction ([`pypdf`](https://pypdf.readthedocs.io/), Markdown section parser, Plain text) with magic bytes verification and path traversal prevention
+- **Testing & Quality**: [Pytest](https://docs.pytest.org/), [HTTPX](https://www.python-httpx.org/), [Ruff](https://astral.sh/ruff/) (linter & formatter), and [Mypy](https://mypy-lang.org/) (type checker)
+- **Containerization**: Multi-stage Dockerfile and Docker Compose orchestration
 
 ---
 
-## 📁 Project Structure
+## 📁 Repository Layout
 
 ```text
-├── .github/workflows/ci.yml       # GitHub Actions CI workflow
-├── docker-compose.yml             # Local PostgreSQL and Qdrant services
-├── .env.example                   # Environment configuration schema template
-├── package.json                   # Project manifest & scripts
-├── tsconfig.json                  # TypeScript base configuration
-├── tsconfig.build.json            # Production build compilation configuration
-├── vitest.config.ts               # Vitest automated test runner configuration
-├── src/
-│   ├── config/                    # Validated environment configuration (Zod schema)
-│   ├── database/                  # PostgreSQL pool, query helpers & migration engine
-│   │   ├── migrations/            # Versioned SQL migration scripts
-│   │   ├── migrator.ts            # Transactional migration runner
-│   │   └── migrate-cli.ts         # CLI entrypoint for migrations
-│   ├── errors/                    # Structured operational error hierarchy
-│   ├── middleware/                # Validation & central error handling middlewares
-│   ├── modules/
-│   │   ├── auth/                  # Password hashing & JWT cryptography helpers
-│   │   ├── health/                # Liveness (/health) and readiness (/ready) routes
-│   │   ├── users/                 # User domain types & entities
-│   │   └── workspaces/            # Workspace & membership domain types
-│   ├── app.ts                     # Express application factory
-│   └── index.ts                   # Server entrypoint with lifecycle & graceful shutdown
-└── test/                          # Unit and integration test suite
+├── alembic/                       # Version-controlled database schema migrations
+│   ├── versions/                  # Individual migration revisions
+│   └── env.py                     # Async Alembic migration environment
+├── docs/
+│   ├── adr/
+│   │   └── 0001-document-identity-and-duplicate-handling.md  # ADR on content-hash vs identity
+│   └── migration/
+│       └── legacy-inventory.md    # Documentation of legacy code removal & decisions
+├── src/askbase/
+│   ├── api/                       # HTTP API layer
+│   │   ├── deps.py                # Dependencies (DB session, Auth, Workspace authorization)
+│   │   ├── routers/               # Endpoint controllers (health, auth, workspaces, documents, search, qa)
+│   │   └── schemas/               # Pydantic request and response schemas
+│   ├── core/                      # Settings, Argon2 security, structured logging, error hierarchy
+│   ├── db/                        # Database engine, session lifecycle, health probes
+│   ├── models/                    # SQLAlchemy ORM models (User, Workspace, Document, Version, Chunk, etc.)
+│   ├── repositories/              # Persistence and query layer
+│   ├── services/                  # Business logic use cases (Auth, Workspace, Document, Q&A)
+│   ├── ingestion/                 # File validation, magic bytes check, text extraction, chunking
+│   ├── retrieval/                 # Scoped lexical, semantic, and hybrid search
+│   ├── ai/                        # Embedding and grounded LLM synthesis providers
+│   └── main.py                    # Application entrypoint with correlation and error handlers
+├── tests/                         # Comprehensive automated test suite
+├── docker-compose.yml             # Local PostgreSQL and API container definition
+├── Dockerfile                     # Multi-stage production container build
+├── pyproject.toml                 # Project metadata, dependencies, and tool settings
+├── uv.lock                        # Deterministic package dependency lockfile
+└── requests.http                  # Executable HTTP request collection
 ```
 
 ---
@@ -52,98 +63,138 @@ AskBase is a modern, modular monolith backend designed for scalable data managem
 ### 1. Prerequisites
 
 Ensure you have the following installed:
-- [Node.js](https://nodejs.org/) (version 20 or higher)
-- [npm](https://www.npmjs.com/) (version 10 or higher)
+- [Python](https://www.python.org/) (version 3.11 or higher, recommended 3.13)
+- [`uv`](https://docs.astral.sh/uv/) (recommended fast package manager)
 - [Docker](https://www.docker.com/) (optional, for local PostgreSQL via Docker Compose)
+
+*Fallback without uv: Standard `python -m venv .venv` and `pip install -e ".[dev]"` can also be used.*
 
 ### 2. Installation
 
-Clone the repository and install dependencies:
+Clone the repository and sync the virtual environment using `uv`:
 
 ```bash
 git clone https://github.com/Shyam525/AskBase.git
 cd AskBase
-npm install
+uv sync --extra dev
 ```
 
 ### 3. Environment Configuration
 
-Copy the example environment configuration:
+Copy the example configuration file:
 
 ```bash
 cp .env.example .env
 ```
 
-Review and adjust settings in `.env` as needed:
+Key environment configuration variables:
 
-| Variable | Description | Default |
-| :--- | :--- | :--- |
-| `NODE_ENV` | Application environment (`development`, `test`, `production`) | `development` |
-| `PORT` | HTTP server port | `5000` |
-| `DATABASE_URL` | PostgreSQL connection URL | `postgresql://postgres:secret@localhost:5432/askbase` |
-| `JWT_SECRET` | Signing secret for access tokens ($\ge 32$ chars in production) | Dev placeholder |
-| `JWT_EXPIRES_IN` | Token expiration duration | `15m` |
-| `BCRYPT_SALT_ROUNDS` | Salt rounds for password hashing | `10` |
-| `CORS_ORIGIN` | Allowed CORS origins | `*` |
-| `LOG_LEVEL` | Log level (`debug`, `info`, `warn`, `error`) | `info` |
+| Variable | Description | Default | Production Requirement |
+| :--- | :--- | :--- | :--- |
+| `NODE_ENV` | Environment (`development`, `test`, `production`) | `development` | Mandatory |
+| `PORT` | HTTP port | `5000` | Optional |
+| `DATABASE_URL` | PostgreSQL async connection string | PostgreSQL docker URL | Mandatory |
+| `JWT_SECRET` | Access token signing secret | Dev fallback | $\ge 32$ chars, fails closed if omitted |
+| `JWT_EXPIRES_IN_MINUTES` | Access token validity window | `15` | Default 15m |
+| `STORAGE_DIR` | Local disk root for uploaded documents | `storage/documents` | Persistent volume |
+| `EMBEDDING_PROVIDER` | Vector embedding engine (`fake`, `none`) | `fake` | Configurable |
+| `AI_PROVIDER` | Grounded synthesis engine (`fake`, `extractive`) | `fake` | Configurable |
 
-### 4. Running the Database (Docker)
+### 4. Running the Database (Docker Compose)
 
-To run the PostgreSQL and Qdrant containers locally:
+Start the PostgreSQL service in the background:
 
 ```bash
-docker compose up -d
+docker compose up -d postgres
 ```
 
 ### 5. Running Database Migrations
 
-Apply pending database migrations to the configured database:
+Apply database migrations to head:
 
 ```bash
-npm run db:migrate
+uv run alembic upgrade head
 ```
 
-### 6. Starting the Server
+### 6. Starting the Backend Server
 
-- **Development Mode** (with hot reload):
+- **Development Server** (with hot reload):
   ```bash
-  npm run dev
+  uv run uvicorn askbase.main:app --reload --port 5000
   ```
-- **Production Build & Run**:
+- **Production Server**:
   ```bash
-  npm run build
-  npm start
+  uv run uvicorn askbase.main:app --host 0.0.0.0 --port 5000
   ```
 
 ---
 
-## 📡 Core Endpoints
+## 📡 API Endpoints
 
-| Method | Endpoint | Description | Expected Response |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/` | API status metadata | `200 OK` `{ "name": "AskBase API", "status": "operational" }` |
-| `GET` | `/health` | Liveness probe (process responsiveness) | `200 OK` `{ "status": "ok", "uptime": 12.3, "timestamp": "..." }` |
-| `GET` | `/ready` | Readiness probe (PostgreSQL connectivity check) | `200 OK` (connected) or `503 Service Unavailable` (degraded) |
+### Health Probes
+- `GET /` — Operational status metadata
+- `GET /health/live` (alias `/health`) — Process liveness probe
+- `GET /health/ready` (alias `/ready`) — Database connectivity probe (returns 200 or 503)
+
+### Authentication & Sessions
+- `POST /api/auth/register` — Onboard user and create primary tenant workspace
+- `POST /api/auth/login` — Authenticate credentials and receive short-lived access token + refresh token
+- `POST /api/auth/refresh` — Rotate refresh token and obtain new access token
+- `POST /api/auth/logout` — Revoke active refresh session
+- `GET /api/auth/me` — Retrieve current authenticated user profile and memberships
+
+### Workspace Isolation & Roles
+- `POST /api/workspaces` — Create new workspace boundary (creator becomes `owner`)
+- `GET /api/workspaces` — List workspaces accessible to authenticated user
+- `GET /api/workspaces/{id}` — Get workspace metadata (enforces tenant membership)
+- `POST /api/workspaces/{id}/members` — Add member (`admin` or `owner` privilege required)
+- `GET /api/workspaces/{id}/members` — List members
+- `DELETE /api/workspaces/{id}/members/{user_id}` — Remove member
+
+### Documents & Provenance
+- `POST /api/workspaces/{id}/documents` — Ingest document (v1) with magic bytes check and hash detection
+- `GET /api/workspaces/{id}/documents` — List active documents with latest version info
+- `GET /api/workspaces/{id}/documents/{doc_id}` — Document details with full immutable version history
+- `POST /api/workspaces/{id}/documents/{doc_id}/versions` — Append new version without altering historical snapshots
+- `DELETE /api/workspaces/{id}/documents/{doc_id}` — Safe soft delete preserving citations and audit trails
+- `GET /api/workspaces/{id}/documents/{doc_id}/versions/{v_id}/download` — Download exact historical binary
+
+### Search & Evidence-Grounded Q&A
+- `POST /api/workspaces/{id}/search` — Search workspace documents (`lexical`, `semantic`, or `hybrid`)
+- `POST /api/workspaces/{id}/ask` — Ask question; returns evidence-backed answer with verifiable citations, or **explicitly abstains** when evidence is insufficient
 
 ---
 
 ## 🧪 Testing & Verification
 
-The test suite runs unit, integration, and database constraint tests using Vitest and a disposable in-process PostgreSQL instance:
+Run the full automated test suite, linter, and static type checker:
 
 ```bash
 # Run all automated tests
-npm test
+uv run pytest -v
 
-# Run tests in watch mode
-npm run test:watch
+# Run Ruff linter
+uv run ruff check .
 
-# Validate TypeScript types
-npm run typecheck
+# Check code formatting
+uv run ruff format --check .
 
-# Build production bundle
-npm run build
+# Run static type checker
+uv run mypy src
 ```
+
+---
+
+## 🔒 Key Architectural Decisions
+
+1. **Document Identity vs. Binary Equality (ADR 0001)**:
+   A matching SHA-256 hash indicates identical bytes, but does not imply identical logical identity or user intent. AskBase calculates and exposes exact hash matches without automatically merging or deleting records. See [`docs/adr/0001-document-identity-and-duplicate-handling.md`](docs/adr/0001-document-identity-and-duplicate-handling.md).
+2. **Version Immutability**:
+   Uploading a newer version increments the version counter and stores a new immutable record. Historical versions and the passages cited in earlier answers are never mutated.
+3. **Tenant & Workspace Scoping**:
+   Authorization dependencies verify workspace membership on every request, ensuring zero horizontal data leaks across workspaces.
+4. **Mandatory Abstention**:
+   The Q&A engine strictly evaluates passage evidence before answering. Unsupported questions trigger explicit abstention instead of generative hallucination.
 
 ---
 

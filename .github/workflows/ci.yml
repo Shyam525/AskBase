@@ -8,7 +8,7 @@ on:
 
 jobs:
   validate:
-    name: Build, Lint & Test
+    name: Build, Lint, Typecheck & Test
     runs-on: ubuntu-latest
 
     services:
@@ -21,7 +21,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres -d askbase_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -30,24 +30,32 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 22
-        uses: actions/setup-node@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          node-version: '22'
-          cache: 'npm'
+          enable-cache: true
+          version: "latest"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
 
       - name: Install dependencies
-        run: npm ci
+        run: uv sync --extra dev
 
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Check code formatting (ruff)
+        run: uv run ruff format --check .
 
-      - name: Run automated tests
-        run: npm test
+      - name: Lint codebase (ruff)
+        run: uv run ruff check .
+
+      - name: Run static type analysis (mypy)
+        run: uv run mypy src
+
+      - name: Run automated test suite (pytest)
+        run: uv run pytest -v
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://postgres:secret@localhost:5432/askbase_test
+          DATABASE_URL: postgresql+asyncpg://postgres:secret@localhost:5432/askbase_test
           JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long!
-
-      - name: Build production bundle
-        run: npm run build
