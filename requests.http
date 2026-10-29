@@ -1,56 +1,95 @@
 @baseUrl = http://localhost:5000
 
-### ─── 1. Register Org A ────────────────────────────────────────────
+### ─── 1. Health Checks ───────────────────────────────────────────────
+GET {{baseUrl}}/health/live
+
+###
+GET {{baseUrl}}/health/ready
+
+### ─── 2. Register Tenant & Admin User ───────────────────────────────
 POST {{baseUrl}}/api/auth/register
 Content-Type: application/json
 
 {
-  "orgName": "Startup A",
-  "email": "admin@startupa.com",
-  "password": "SecurePass123!"
+  "orgName": "Acme Global",
+  "email": "admin@acme.org",
+  "password": "SecurePassword123!",
+  "name": "Jane Doe"
 }
 
-# Copy the "accessToken" value from the response ↓
-@tokenA = PASTE_ACCESS_TOKEN_HERE
+# Copy the "access_token" value from response ↓
+@token = PASTE_ACCESS_TOKEN_HERE
+@workspaceId = PASTE_WORKSPACE_ID_HERE
 
-### ─── 2. Register Org B (proves multi-tenancy isolation) ───────────
-POST {{baseUrl}}/api/auth/register
-Content-Type: application/json
-
-{
-  "orgName": "Startup B",
-  "email": "admin@startupb.com",
-  "password": "SecurePass123!"
-}
-
-@tokenB = PASTE_ORG_B_ACCESS_TOKEN_HERE
-
-### ─── 3. Login ─────────────────────────────────────────────────────
+### ─── 3. Login ───────────────────────────────────────────────────────
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
 
 {
-  "email": "admin@startupa.com",
-  "password": "SecurePass123!"
+  "email": "admin@acme.org",
+  "password": "SecurePassword123!"
 }
 
-### ─── 4. Verify your JWT — Get current user ─────────────────────────
+### ─── 4. Current User & Workspaces ───────────────────────────────────
 GET {{baseUrl}}/api/auth/me
-Authorization: Bearer {{tokenA}}
+Authorization: Bearer {{token}}
 
-### ─── 5. Refresh token ──────────────────────────────────────────────
+### ─── 5. Refresh Session ────────────────────────────────────────────
 POST {{baseUrl}}/api/auth/refresh
 Content-Type: application/json
 
 {
-  "refreshToken": "PASTE_REFRESH_TOKEN_FROM_LOGIN_RESPONSE"
+  "refreshToken": "PASTE_REFRESH_TOKEN_HERE"
 }
 
-### ─── 6. Logout ─────────────────────────────────────────────────────
-POST {{baseUrl}}/api/auth/logout
-Authorization: Bearer {{tokenA}}
+### ─── 6. Upload Document (Multipart Form) ───────────────────────────
+POST {{baseUrl}}/api/workspaces/{{workspaceId}}/documents
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="title"
+
+Corporate Expense Policy 2026
+------WebKitFormBoundary
+Content-Disposition: form-data; name="file"; filename="expense_policy.md"
+Content-Type: text/markdown
+
+# Corporate Expense Policy
+Section 1. Travel expenses must be pre-approved by the department director.
+Section 2. Hotel accommodations are capped at 250 dollars per night for domestic travel.
+Section 3. Expense reimbursement requests must be submitted within 30 days of travel completion.
+------WebKitFormBoundary--
+
+### ─── 7. List Active Documents ───────────────────────────────────────
+GET {{baseUrl}}/api/workspaces/{{workspaceId}}/documents
+Authorization: Bearer {{token}}
+
+### ─── 8. Scoped Workspace Search ────────────────────────────────────
+POST {{baseUrl}}/api/workspaces/{{workspaceId}}/search
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "refreshToken": "PASTE_REFRESH_TOKEN"
+  "query": "hotel accommodation reimbursement",
+  "mode": "hybrid",
+  "limit": 5
+}
+
+### ─── 9. Grounded Q&A (Answers with Verifiable Citations) ────────────
+POST {{baseUrl}}/api/workspaces/{{workspaceId}}/ask
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "question": "What is the maximum hotel accommodation allowance per night?"
+}
+
+### ─── 10. Grounded Q&A (Abstention on Unsupported Questions) ─────────
+POST {{baseUrl}}/api/workspaces/{{workspaceId}}/ask
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "question": "What is the recommended recipe for baking sourdough bread?"
 }
